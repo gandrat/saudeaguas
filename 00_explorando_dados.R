@@ -74,3 +74,6 @@ df_longo <- df_largo %>%
 # Exibir a tabela transformada
 print("Tabela longa:")
 print(df_longo)
+
+
+#testando o commit
