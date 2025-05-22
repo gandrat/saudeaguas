@@ -7,6 +7,8 @@ library(leaflet)
 library(geobr)
 library(sf)
 
+
+#teste de modificação
 ui <- fluidPage(
   titlePanel("Quadro de incidências de Leptospirose e instalações sanitárias por municípios brasileiros no ano de 2010."),
   
