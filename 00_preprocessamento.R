@@ -1,70 +1,38 @@
 ##Pré processamento de dados
 # Carregar pacotes necessários
 library(dplyr)
+library(tidyr)
+library(ggplot2)
 
 # Caminho do arquivo CSV
-caminho_arquivo <- 'input_data/sinannet_cnv_leptobr135749200_132_11_251_2013.csv'
+arquivosc <- list.files('input_data/datasus_bruto', pattern = ".csv",full.names = T)
+arquivos <- list.files('input_data/datasus_bruto', pattern = ".csv")
 
 # Verificar se o arquivo existe antes de carregar
-if (file.exists(caminho_arquivo)) 
+if (file.exists(arquivosc)) {
+  df <- read.csv(arquivosc, fileEncoding = "ISO-8859-1", sep = ";") 
+}
   # Tente carregar o arquivo com o delimitador correto (vírgula ou ponto e vírgula)
-  dados <- read.csv(caminho_arquivo, fileEncoding = "ISO-8859-1", sep = ";") 
+  
 
 # Visualizar as primeiras linhas do arquivo
-head(dados)
+head(df)
 
-# Exibir os dados no Viewer do RStudio
-View(dados)
+df[, -1] <- lapply(df[, -1], as.numeric)
 
-# Separar colunas numéricas e de caracteres
-dados_numericos <- dados %>%
-  select(where(is.numeric))
+df$ano<-as.numeric(substring(arquivos,1,4))
 
-dados_caracteres <- dados %>%
-  select(where(~ is.character(.) | is.factor(.)))
+dfp<-df%>%select(-Total)%>%
+  pivot_longer(
+    cols = c(-Município.de.residência,-ano), # Seleciona todas as colunas EXCETO 'municipio' para pivotar
+    names_to = "mes", # Nome da nova coluna que conterá os nomes das colunas originais
+    values_to = "valor"    # Nome da nova coluna que conterá os valores das colunas originais
+  )
 
-# Exibir as primeiras linhas dos dados numéricos e de caracteres
-head(dados_numericos)
-head(dados_caracteres)
+ggplot(dfp,aes(x=mes,y=valor))+geom_col()
 
-# Exibir as tabelas no Viewer do RStudio
-View(dados_numericos)
-View(dados_caracteres)
-
-# Carregar pacotes necessários
-library(dplyr)
-
-# Caminho do arquivo CSV
-caminho_arquivo <- 'input_data/sinannet_cnv_leptobr135749200_132_11_251_2013.csv'
-
-# Verificar se o arquivo existe antes de carregar
-if (file.exists(caminho_arquivo)) {
-  
-  # Tente carregar o arquivo com o delimitador correto (vírgula ou ponto e vírgula)
-  dados <- read.csv(caminho_arquivo, fileEncoding = "ISO-8859-1", sep = ";") 
-  
-  # Visualizar as primeiras linhas do arquivo
-  head(dados)
-  
-  # Exibir os dados no Viewer do RStudio
-  View(dados)
-  
-  # Separar colunas numéricas e de caracteres
-  dados_numericos <- dados %>%
-    select(where(is.numeric))
-  
-  dados_caracteres <- dados %>%
-    select(where(~ is.character(.) | is.factor(.)))
-  
-  # Exibir as primeiras linhas dos dados numéricos e de caracteres
-  head(dados_numericos)
-  head(dados_caracteres)
-  
-  # Exibir as tabelas no Viewer do RStudio
-  View(dados_numericos)
-  View(dados_caracteres)
-  
-} else {
-  message("Arquivo não encontrado: ", caminho_arquivo)
-}
+#Próximos passos:
+# 1. transformar nome do mês em data.
+# 2. Adicionar nome da doença na coluna de valor
+# 3. separar geocódigo de nome do município
 
