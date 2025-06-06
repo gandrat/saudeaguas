@@ -9,7 +9,7 @@ library(tidyr)
 library(data.table)
 
 
-lista_tabelas<-list.files('input_data',full.names = T)
+lista_tabelas<-list.files('input_data/datasus_bruto/',full.names = T)
 
 i=2
 
@@ -37,3 +37,4 @@ ggplot(dff,aes(x=mes,y=casos,fill=uf))+geom_col()+
   facet_wrap(~id_doenca,ncol=1)+
   theme_bw()
 
+save(dff, file = 'output_data/00_datasus_preprocess.Rda')
