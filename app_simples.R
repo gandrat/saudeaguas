@@ -14,21 +14,40 @@ library('here')
 library('leaflet.extras')
 
 # --- Carregar e Preparar os Dados ----
-# arquivo .rda que gerou
-load('output_data/doencas_dados.rda')
-mun<-st_transform(mun,crs='EPSG:4326')
-uf<-st_transform(uf,crs='EPSG:4326')
 
-basemap = leaflet(option=leafletOptions(zoomControl=FALSE)) %>% 
+# 1. Carregar os data frames de casos e atributos (CASOS_MUN, CASOS_UF, JOIN_MUN, UF)
+load('output_data/doencas_dados.rda')
+
+# Define o caminho para o GeoPackage único (corrigido para 'shape')
+geopackage_path <- "input_data/shape/PIE.gpkg"
+
+# 2. Ler os objetos geográficos (com geometria) para o Leaflet
+# Lendo a camada de Municípios do PIE.gpkg
+mun_sf <- st_read(geopackage_path, layer = "BR_Municipios_2024", quiet = TRUE)
+# Lendo a camada de Estados do PIE.gpkg
+uf_sf <- st_read(geopackage_path, layer = "BR_UF_2024", quiet = TRUE)
+
+
+# 3. Preparar os objetos geográficos para junção e visualização
+mun_sf <- mun_sf %>% 
+  # Cria a coluna de junção COD (código de 6 dígitos)
+  mutate(COD = substring(CD_MUN, 1, 6)) %>% 
+  # Transforma para WGS84 para Leaflet
+  st_transform(crs = 'EPSG:4326') 
+
+uf_sf <- uf_sf %>%
+  # Transforma para WGS84 para Leaflet
+  st_transform(crs = 'EPSG:4326')
+
+
+basemap = leaflet(options = leafletOptions(zoomControl = FALSE)) %>% 
   addTiles() %>% 
   addLayersControl(
     position = "bottomright",
-    overlayGroups = c("Mapa1"),
+    overlayGroups = c("Casos por Município"), # Nome do layer de visualização
     options = layersControlOptions(collapsed = FALSE)) %>% 
-  # hideGroup(c("Municípios: Mortes por 100 mil","Estados: Casos por 100 mil","Estados: Mortes por 100 mil","Municípios: Índice de Vulnerabilidade Social (IVS)"))  %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   setView(-50, -18, 4.4)
-
 
 
 # interface do usuário (UI)-----------
@@ -48,122 +67,174 @@ ui <- navbarPage(theme = shinytheme("sandstone"), collapsible = TRUE,
                                             p("Selecione as opções abaixo para filtrar os dados."),
                                             
                                             selectInput("doenca_selecionada", "Selecione a Doença:",
-                                                        choices = unique(casos_mun$doenca),
-                                                        selected = unique(casos_mun$doenca)[1]), # Adicionado
+                                                        choices = unique(CASOS_MUN$DVH),
+                                                        selected = unique(CASOS_MUN$DVH)[1]),
                                             
                                             selectInput("ano_selecionado", "Selecione o Ano:",
-                                                        choices = unique(casos_mun$ano),
-                                                        selected = unique(casos_mun$ano)[1]), # Adicionado
+                                                        choices = unique(CASOS_MUN$ANO),
+                                                        selected = unique(CASOS_MUN$ANO)[1]),
                                             
                                             selectInput("mes_selecionado", "Selecione o Mês:",
-                                                        choices = unique(casos_mun$mes),
-                                                        selected = unique(casos_mun$mes)[1]),
+                                                        choices = unique(CASOS_MUN$MES),
+                                                        selected = unique(CASOS_MUN$MES)[1]),
                                             
+                                            # Mantemos o actionButton para forçar a atualização do mapa
                                             actionButton("update_view", "Gerar Mapa!")),
                               
                               # Painel para exibir os totais
                               h3(textOutput("total_casos"), align = "right"),
                               h4(textOutput("num_municipios"), align = "right")
-                              
-                              # Gráfico simplificado
-                              # plotOutput("grafico_casos_total", height="180px", width="100%")
                           )
                  ),
-                 
-                 
                  
                  ## Gráficos por Estados-----
                  tabPanel("Gráficos por Estados",
                           sidebarLayout(
                             sidebarPanel(
                               pickerInput("doenca_estado", "Selecione a Doença:",
-                                          choices = unique(casos_uf$doenca),
+                                          choices = unique(CASOS_UF$DVH),
                                           selected = "leptospirose"),
                               pickerInput("estado_select", "Estados:",
-                                          choices = unique(casos_uf$NM_UF),
+                                          choices = unique(CASOS_UF$NM_UF),
                                           options = list(`actions-box` = TRUE),
-                                          selected = unique(casos_uf$NM_UF)[1:5],
+                                          selected = unique(CASOS_UF$NM_UF)[1:5],
                                           multiple = TRUE)
                             ),
                             mainPanel(
-                              plotlyOutput("grafico_estados")
+                              h4("Casos Totais por Data"),
+                              plotlyOutput("grafico_estados"),
+                              hr(),
+                              h4("Casos por 100 mil Habitantes"),
+                              plotlyOutput("grafico_taxa_estados")
                             )
                           )
                  )
-                 
 )
 
-plot(uf)
 # backend---------
 server <- function(input, output) {
-  ##Reactive DBs------------  
   
-  # Reactive para os gráficos: Filtra dados de estados
-  casos_uf_db <- reactive({
+  ## Reactive DBs------------	
+  
+  # Reactive para os gráficos: Filtra dados de estados (CASOS_UF)
+  CASOS_UF_db <- reactive({
     req(input$doenca_estado, input$estado_select)
-    casos_uf %>%
-      filter(doenca == input$doenca_estado, NM_UF %in% input$estado_select)
+    CASOS_UF %>%	
+      filter(DVH == input$doenca_estado, NM_UF %in% input$estado_select)	
   })
   
-  casos_uf_db_sf <- reactive({
+  # Reactive para o mapa: Filtra os dados de município (CASOS_MUN) e junta com a geometria (mun_sf)
+  CASOS_MUN_db_sf <- eventReactive(input$update_view, {
     req(input$doenca_selecionada, input$ano_selecionado, input$mes_selecionado)
-    casos_uf %>%
-      filter(doenca == input$doenca_selecionada,
-             ano==input$ano_selecionado)%>%
-      left_join(uf,by='CD_UF')
+    
+    # Filtra os dados de casos
+    dados_filtrados <- CASOS_MUN %>%	
+      filter(DVH == input$doenca_selecionada,	
+             ANO == input$ano_selecionado,	
+             MES == input$mes_selecionado,
+             CASOS > 0) # Filtra apenas municípios com casos
+    
+    # Junta com a geometria (mun_sf) usando a chave COD
+    dados_filtrados_sf <- dados_filtrados %>%
+      # Agrega os casos por município para a junção com o sf
+      group_by(COD, NOME) %>%
+      summarise(CASOS_TOTAIS = sum(CASOS, na.rm = TRUE), .groups = 'drop') %>%
+      # Junção com a geometria, usa left_join para manter a geometria
+      left_join(mun_sf, by = 'COD') %>%
+      # Converte de volta para sf após a junção
+      st_as_sf()
+    
+    return(dados_filtrados_sf)
   })
   
-  # Reactive para o mapa: Filtra os dados de acordo com a seleção do usuário
-  casos_mun_db <- reactive({
-    req(input$doenca_selecionada, input$ano_selecionado)
-    casos_mun %>%
-      filter(doenca == input$doenca_selecionada, 
-             ano == input$ano_selecionado,
-             mes==input$mes_selecionado)%>%
-      left_join(mun,by='cod_mun')
-  })
-  
-  # Totais
+  # Totais (Continua usando o filtro municipal)
   output$total_casos <- renderText({
-    casos_total <- sum(casos_mun_db()$casos, na.rm = TRUE)
-    paste0(format(casos_total, big.mark=","), " casos")
+    # Usa o mesmo filtro, mas sem a geometria, para calcular o total
+    casos_total <- CASOS_MUN %>%
+      filter(DVH == input$doenca_selecionada,	
+             ANO == input$ano_selecionado,	
+             MES == input$mes_selecionado) %>%
+      summarise(total = sum(CASOS, na.rm = TRUE)) %>%
+      pull(total)
+    
+    paste0(format(casos_total, big.mark="."), " casos")
   })
-  
-  
   
   output$num_municipios <- renderText({
-    n_mun <- casos_mun_db() %>% distinct(nome_mun) %>% nrow()
+    n_mun <- CASOS_MUN_db_sf() %>% distinct(NOME) %>% nrow()	
     paste0(n_mun, " municípios afetados")
   })
   
   ## Gráficos--------------
-  ###Casos por estados----------
   
-  # Gráfico por Estados
+  # 1. Gráfico de Casos Totais por Data (Série Temporal)
   output$grafico_estados <- renderPlotly({
-    g <- ggplot(casos_uf_db(), aes(x = ano, y = casos_total, color = NM_UF, group = NM_UF)) +
+    g <- ggplot(CASOS_UF_db(), aes(x = DATA, y = CASOS, color = NM_UF, group = NM_UF)) +
       geom_line() +
-      labs(title = paste("Casos de", input$doenca_estado, "por Estado"),
-           x = "Ano", y = "Nº de Casos Totais") +
+      labs(title = "",	
+           x = "Data", y = "Nº de Casos Totais") +
       theme_minimal() +
       theme(legend.title = element_blank())
     
     ggplotly(g)
   })
   
+  # 2. Gráfico de Casos por 100 mil (Taxa) por Data
+  output$grafico_taxa_estados <- renderPlotly({
+    g <- ggplot(CASOS_UF_db(), aes(x = DATA, y = POP_100K, color = NM_UF, group = NM_UF)) +
+      geom_line() +
+      labs(title = "",	
+           x = "Data", y = "Casos por 100 mil hab.") +
+      theme_minimal() +
+      theme(legend.title = element_blank())
+    
+    ggplotly(g)
+  })
+  
+  
+  # Mapa Base
   output$mymap <- renderLeaflet({
-    basemap})
+    basemap
+  })
   
   
-  # Mapa Leaflet----------
-  
-  # observeEvent(input$update_view,{
-  #   leafletProxy("mymap") %>% 
-  #     # clearMarkers() %>%
-  #     
-  #     addPolygons(data = casos_uf_db_sf(), 
-  #                 color=c("#A50026"))
-  # })
+  # Lógica de Atualização do Mapa (eventReactive acionado pelo botão)
+  observeEvent(input$update_view, {
+    dados_mapa <- CASOS_MUN_db_sf()
+    
+    # 1. Define paleta de cores
+    cor_fun <- colorBin(
+      palette = "Reds",
+      domain = dados_mapa$CASOS_TOTAIS,
+      bins = c(0, 1, 5, 10, 20, 50, Inf) # Exemplo de classes, ajuste conforme seus dados
+    )
+    
+    # 2. Define o rótulo (popup)
+    labels <- sprintf(
+      "<strong>%s</strong><br/>Casos: %s",
+      dados_mapa$NOME, dados_mapa$CASOS_TOTAIS
+    ) %>% lapply(htmltools::HTML)
+    
+    # 3. Atualiza o mapa
+    leafletProxy("mymap", data = dados_mapa) %>%	
+      clearShapes() %>% # Limpa as geometrias antigas
+      addPolygons(
+        fillColor = ~cor_fun(CASOS_TOTAIS),
+        weight = 1,
+        opacity = 1,
+        color = "white",
+        dashArray = "3",
+        fillOpacity = 0.7,
+        highlightOptions = highlightOptions(
+          weight = 3,
+          color = "#666",
+          dashArray = "",
+          fillOpacity = 0.9,
+          bringToFront = TRUE),
+        label = labels,
+        group = "Casos por Município"
+      )
+  })
   
   
 }
