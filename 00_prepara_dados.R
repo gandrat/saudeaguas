@@ -93,7 +93,6 @@ casos_uf <- casos_mun %>%
 save(casos_mun, casos_uf, mun, uf, file = "output_data/doencas_dados.rda")
 
 plot(uf)
-=======
 # scripts/prepara_dados.R
 # --- Pré-processamento e padronização dos dados
 
@@ -180,4 +179,3 @@ dados_estados <- dados_municipios %>%
 
 # 4. Salvar os objetos em um único arquivo .rda
 save(dados_municipios, dados_estados, mun_shape, est_shape, file = here("data/doencas_dados.rda"))
->>>>>>> 187d63c (Nova versão da plataforma. Reorganizando pastas e arquivos.)
