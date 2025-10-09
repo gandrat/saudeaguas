@@ -10,4 +10,13 @@ con <- dbConnect(
   password = "guardia_2025"
 )
 
+load('output_data/doencas_dados.rda')
+
 ##Testando conexão
+# casos_mun<-dbGetQuery(con,"select * from caso");
+casos_uf<-dbGetQuery(con,"select * from casos_uf;")
+casos_uf<-casos_uf%>%mutate(ano=format(data,'%Y'),
+                            mes=format(data,'%m'))
+
+
+save(casos_uf,file='output_data/doencas_dados_v2.rda')
