@@ -9,3 +9,5 @@ con <- dbConnect(
   user = "guardia",
   password = "guardia_2025"
 )
+
+##Testando conexão
