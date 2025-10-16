@@ -19,7 +19,12 @@ casos_uf<-dbGetQuery(con,"select * from casos_uf;")
 casos_uf<-casos_uf%>%mutate(ano=format(data,'%Y'),
                             mes=format(data,'%m'))
 
+
 uf<-dbGetQuery(con,"select * from uf;")
 
 
 save(casos_uf, uf, file='output_data/doencas_dados_v2.rda')
+
+
+save(casos_uf,file='output_data/doencas_dados_v2.rda')
+

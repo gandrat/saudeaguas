@@ -36,6 +36,7 @@ ui <- navbarPage(theme = shinytheme("sandstone"), collapsible = TRUE,
                  
                  
                  ## Aba Gráficos por Estados-----
+
                  tabPanel("Gráficos por Estados",
                           sidebarLayout(
                             sidebarPanel(
