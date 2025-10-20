@@ -28,6 +28,18 @@ casos_uf <- casos_uf %>%
     ano = lubridate::year(data)
   )
 
+casos_rgi <- casos_rgi %>%
+mutate(
+  estacao = case_when(
+    mes %in% c("12", "01", "02") ~ "Verão", 
+    mes %in% c("03", "04", "05") ~ "Outono",      
+    mes %in% c("06", "07", "08") ~ "Inverno",          
+    mes %in% c("09", "10", "11") ~ "Primavera",        
+    TRUE ~ "Não Classificado" 
+  ),
+  ano = lubridate::year(data)
+)
+
 imediatas_regiao <- casos_rgi %>%
   select(nm_rgi, nm_rgint, nm_regia) %>%
   distinct() %>%
