@@ -13,6 +13,7 @@ library('RColorBrewer')
 
 load('output_data/doencas_dados_v4.rda') 
 
+
 #agrupamentos----
 group_df <- casos_municipios_mes %>%
   select(nm_uf, nm_regia) %>%
@@ -58,24 +59,39 @@ data_slider <- casos_municipios_mes %>%
 ## Basemap----------------
 basemap = leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
   addTiles() %>%
-  addLayersControl(
-    position = "bottomright",
-    overlayGroups = c("Densidade de Prevalência","Marcadores de Prevalência"),
-    options = layersControlOptions(collapsed = FALSE)) %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   setView(-50, -18, 4.4)
 
 # (UI)
 
 ui <- navbarPage(theme = shinytheme("sandstone"), collapsible = TRUE,
-                 title="Plataforma de Informações Espaciais", id="nav",
+                 title="Plataforma de Informações Espaciais (PIE) de Doenças de Veiculação Hídrica (DVH)", id="nav",
+                 
+                 tags$head(
+                   tags$style(HTML("
+                     .outer {
+                       position: fixed;
+                       top: 41px; 
+                       left: 0; 
+                       right: 0; 
+                       bottom: 0;
+                       overflow: hidden; 
+                       padding: 0;
+                     }
+                     #controls {
+                       background-color: white;
+                       padding: 15px; 
+                       border-radius: 10px;
+                       box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.1);
+                     }
+                   "))
+                 ),
                  
                  ##1. Aba Mapa-----
                  tabPanel("Mapa de prevalência",
                           div(class="outer",
                               tags$style(type = "text/css", "#mymap {height: calc(100vh - 80px) !important;}"),
                               leafletOutput("mymap")),
-                          
                           absolutePanel(id = "controls", class = "panel panel-default",
                                         top = 100, left = 10, width = 300, fixed=TRUE,
                                         draggable = T, height = "auto",
@@ -92,7 +108,16 @@ ui <- navbarPage(theme = shinytheme("sandstone"), collapsible = TRUE,
                                                     value = max(data_slider),
                                                     step=32,
                                                     timeFormat = "%m-%Y",
-                                                    animate=animationOptions(interval = 1000, loop = FALSE))
+                                                    animate=animationOptions(interval = 1000, loop = FALSE)),
+                                        hr(),
+                                        h5(strong("Filtro de Visualização:")),
+                                        awesomeCheckboxGroup(
+                                          inputId = "map_layers",
+                                          label = NULL,
+                                          choices = c("Densidade de Prevalência", "Marcadores de Prevalência"),
+                                          selected = c("Densidade de Prevalência", "Marcadores de Prevalência"),
+                                          inline = TRUE
+                                        )
                           )
                  ),
                  
@@ -142,27 +167,19 @@ ui <- navbarPage(theme = shinytheme("sandstone"), collapsible = TRUE,
                           fluidRow(
                             column(12,
                                    h3("Informações e Autoria"),
-                                   
                                    hr(),
-                                   
                                    h4("Última Atualização:"),
-                                   p("2025-11-05"),
-                                   
+                                   p("2025-11-12"),
                                    hr(),
-                                   
                                    h4("Detalhes:"),
                                    p("As informações apresentadas neste site baseiam-se em dados oficiais sobre a evolução das doenças de veiculação hídrica no Brasil. Todavia, os resultados aqui divulgados são fruto de modelos científicos e não necessariamente representam a realidade, pois fatores não previstos podem influenciar a expansão do contágio. Embora os autores vislumbrem um bom potencial no uso desses resultados para a tomada de decisões visando a gestão da epidemia, convém reafirmar que incertezas são inerentes ao processo de modelagem preditiva e que as informações aqui apresentadas devem ser consideradas um ensaio acadêmico e sempre interpretadas com a devida cautela."),
-                                   
                                    hr(),
-                                   
                                    h4("Fontes de Dados:"),
                                    tags$ul(
                                      tags$li(strong("Variáveis do Censo Demográfico:"), " IBGE"),
                                      tags$li(strong("Ocorrências de casos das DVH utilizadas (agregadas por mês, ano e município de notificação):"), " DATASUS")
                                    ),
-                                   
                                    hr(),
-                                   
                                    h4("Autores:"),
                                    p(strong("Dr. Tiago Gandra")),
                                    tags$ul(
@@ -170,14 +187,12 @@ ui <- navbarPage(theme = shinytheme("sandstone"), collapsible = TRUE,
                                      tags$li("Laboratório de Geotecnologias e Meio Ambiente (GEOMA)"),
                                      tags$li(tags$a(href = "mailto:tiago.gandra@riogrande.ifrs.edu.br", "tiago.gandra@riogrande.ifrs.edu.br"))
                                    ),
-                                   
                                    p(strong("Isabelli Cruz Costa")),
                                    tags$ul(
                                      tags$li("Discente no Instituto Federal de Educação, Ciência e Tecnologia do Rio Grande do Sul"),
                                      tags$li("Bolsista CNPq do Projeto Guardiãs das Águas"),
                                      tags$li(tags$a(href = "mailto:11040438@aluno.riogrande.ifrs.edu.br", "11040438@aluno.riogrande.ifrs.edu.br"))
                                    ),
-                                   
                                    hr(),
                                    h4("Apoio e Financiamento:"),
                                    tags$div(
@@ -309,7 +324,7 @@ server <- function(input, output, session) {
              nm_rgint %in% input$rgint_select,
              nm_rgi %in% input$rgi_select,
              nm_mun %in% input$mun_select) %>%
-      group_by(data, estacao, ano_estacao) %>%
+      group_by(data, estacao) %>%
       summarise(
         total_casos = sum(total_casos, na.rm = TRUE),
         prev = mean(prev, na.rm = TRUE),
@@ -317,8 +332,9 @@ server <- function(input, output, session) {
       )
   })
   
+  
   ###Kernel-----------
-  observeEvent(c(input$map_date, input$map_doenca), {
+  observeEvent(c(input$map_date, input$map_doenca, input$map_layers), {
     req(input$map_date, input$map_doenca)
     data_filtrada <- floor_date(input$map_date, "month")
     
@@ -330,7 +346,7 @@ server <- function(input, output, session) {
     
     fator_kernel <- 50000
     
-    leafletProxy("mymap", session) %>%
+    proxy <- leafletProxy("mymap", session) %>%
       clearMarkers() %>%
       clearHeatmap() %>%
       removeImage(layerId = 1) %>%
@@ -355,30 +371,35 @@ server <- function(input, output, session) {
       na.color = "transparent"
     )
     
-    leafletProxy("mymap", session) %>%
-      addCircleMarkers(data=casos_mun_db_map, lat=~lat, lng=~lon, radius = ~(prev-min(prev))/(max(prev)-min(prev))*20,
-                       group = "Marcadores de Prevalência",
-                       popup = ~paste0("Município: ", nm_mun, "<br>Data: ", format(data, "%d/%m/%Y"), "<br>Doença: ", doenca,
-                                       "<br>Prevalência (100k): ", round(prev, 2))) %>%
-      
-      addHeatmap(data = casos_mun_db_map, lat = ~ lat, lng = ~ lon,
-                 intensity = ~(prev * fator_kernel),
-                 radius=20,
-                 blur=25,
-                 minOpacity=0.01,
-                 gradient = kernel_colors,
-                 layerId = 1,
-                 group = "Densidade de Prevalência") %>%
-      
-      addLegend(pal = paleta_legenda,
-                values = c(min_prev, max_prev),
-                title = "Prevalência (Casos/100K hab.)",
-                position = "bottomleft",
-                opacity = 0.9,
-                layerId = "kernel_legend",
-                labFormat = labelFormat(transform = function(x) sort(x, decreasing = FALSE))
-      )
-  })
+    if ("Marcadores de Prevalência" %in% input$map_layers) {
+      proxy %>%
+        addCircleMarkers(data=casos_mun_db_map, lat=~lat, lng=~lon, radius = ~(prev-min(prev))/(max(prev)-min(prev))*20,
+                         group = "Marcadores de Prevalência",
+                         popup = ~paste0("Município: ", nm_mun, "<br>Data: ", format(data, "%d/%m/%Y"), "<br>Doença: ", doenca,
+                                         "<br>Prevalência (100k): ", round(prev, 2)))
+    }
+    
+    if ("Densidade de Prevalência" %in% input$map_layers) {
+      proxy %>%
+        addHeatmap(data = casos_mun_db_map, lat = ~ lat, lng = ~ lon,
+                   intensity = ~(prev * fator_kernel),
+                   radius=20,
+                   blur=25,
+                   minOpacity=0.01,
+                   gradient = kernel_colors,
+                   layerId = 1,
+                   group = "Densidade de Prevalência")
+      proxy %>%
+        addLegend(pal = paleta_legenda,
+                  values = c(min_prev, max_prev),
+                  title = "Prevalência (Casos/100K hab.)",
+                  position = "bottomleft",
+                  opacity = 0.9,
+                  layerId = "kernel_legend",
+                  labFormat = labelFormat(transform = function(x) sort(x, decreasing = FALSE))
+        )
+    }
+  }, ignoreNULL = FALSE)
   
   # GRÁFICOS-----
   output$grafico_mun <- renderPlotly({
@@ -393,7 +414,7 @@ server <- function(input, output, session) {
   # GRÁFICO DE PREVALÊNCIA---------
   output$graph_mun <- renderPlotly({
     g <- ggplot(casos_mun_db(), aes(x = data, y = prev)) +
-      geom_col(position = "stack") +
+      geom_col(position = "dodge") +
       labs(title = "", x = "Data", y = "Casos por 100 mil hab.") +
       theme_minimal() +
       theme(legend.title = element_text(size = 12))
