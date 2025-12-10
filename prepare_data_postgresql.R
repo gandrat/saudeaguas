@@ -6,9 +6,6 @@ library(dplyr)
 library(lubridate)
 library(sf) 
 
-
-
-
 # Conexão----------
 con <- dbConnect(
   RPostgres::Postgres(),
@@ -27,7 +24,6 @@ LEFT JOIN regic_2018 AS t2
 ON t1.geo_cod = t2.geo_cod;
 "
 casos_municipios_mes <- dbGetQuery(con, casos)
-dbDisconnect(con)
 
 casos_municipios_mes <- casos_municipios_mes %>%
   filter(prev>0,
