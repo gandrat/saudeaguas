@@ -19,7 +19,7 @@ Os círculos são dimensionados para representar a prevalência da população p
 
 A análise temporal é feita através da segmentação da base de dados por períodos sazonais, ocorrendo as seguintes etapas:
 
-Extração do Mês: O número do mês é extraído da coluna de data de cada registro, logo determinando qual mês irá representar uma estação do ano. Ficando definido como: 
+Extração do mês: O número do mês é extraído da coluna de data de cada registro, logo determinando qual mês irá representar uma estação do ano. Ficando definido como: 
 Verão: Dezembro, Janeiro, Fevereiro
 Outono: Março, Abril, Maio
 Inverno: Junho, Julho, Agosto
